@@ -1,0 +1,851 @@
+Welcome to Jeremy’s IT Lab.
+This is a free, complete course for the CCNA.
+If you like these videos, please subscribe
+to follow along with the series.
+Also, please like and leave a comment, and
+share the video to help spread this free series
+of videos.
+Thanks for your help.
+In this video we will move on to another important
+topic for the CCNA, and a topic that is very important
+for network engineers understand.
+That is STP, Spanning Tree Protocol.
+The CCNA Exam Topics list mentions Rapid spanning
+tree, an updated and superior version of STP.
+However, to understand rapid STP, I think
+its important to understand classic STP first.
+So, first we will talk about STP, which will
+probably be over two separate days since there is a lot to cover,
+and then in a future video I will teach you about rapid
+STP.
+Let’s take a look at what we’ll cover
+in this video.
+First, I’ll talk about redundancy in networks,
+and why it's so important.
+Then I will introduce STP, Spanning Tree Protocol.
+I will introduce its purpose, the problem
+it solves, etc.
+Also, remember to watch until the end of today’s
+quiz.
+I will once again feature a bonus question
+from Boson ExSim for CCNA, Boson’s set of
+practice exams for the CCNA.
+If you’re looking for a set of practice
+exams to get ready for the real thing, Boson
+is without a doubt the best there is.
+I used ExSim for my CCNA and CCNP, so I feel
+very confident about recommending them to
+you.
+If you want to grab a copy of Boson ExSim,
+please follow the link in the video description.
+Okay let’s get started.
+First, just a few points about redundancy
+in networks.
+Redundancy is an essential part of network
+design.
+A network that is not redundant is simply
+not acceptable.
+Modern networks are expected to run 24 hours
+a day, 7 days a week, 365 days a year.
+Even a short downtime can be disastrous for
+a business.
+Imagine if Amazon’s network went down for
+an hour, that would certainly be bad for business.
+If one network component fails, you must ensure
+that other components take over with little
+or no downtime.
+Finally, as much as possible, you must implement
+redundancy at every possible point in the
+network.
+As network engineers, we are responsible for
+business-critical infrastructure, so we have
+to make sure that that infrastructure is resilient
+to failures as much as possible.
+First off, here is a poorly designed network.
+There are many points of failure here which
+could cut off connectivity.
+For example if this connection is cut
+due to a hardware failure, this entire network
+loses connectivity to the Internet.
+Or, if this connection is cut off due to a
+hardware failure, these hosts lose connectivity
+within the LAN, and out to the Internet.
+Okay, those are just two examples, let’s
+look at a better network design.
+This network here is a much better design.
+If this PC wants to reach the Internet, it
+might use this path in a normal situation.
+However, even if this router has a hardware
+failure and goes down completely, the PC can
+reach the Internet via this or another alternate
+path.
+Perhaps traffic to this other PC in the LAN
+usually follows this path to the destination.
+What if this switch fails?
+That’s not a problem, because this alternate
+path is available.
+So, I think you can see the benefit of designing
+redundant networks.
+However, you may be asking, what if this switch
+fails?
+Well, if that is the case, all hosts connected
+to this switch would lose connectivity.
+Unfortunately, Most PCs only have a single
+network interface card (NIC), so they can
+only be plugged into a single switch.
+However, important servers typically have
+multiple NICs, so they can be plugged into
+multiple switches for redundancy.
+We will cover many protocols that are used
+to enable network redundancy throughout this
+course, and spanning tree is one of them.
+Spanning tree is a Layer 2 protocol by the
+way, it enables redundant layer 2 networks,
+so within the LAN here, not routing out to
+the Internet and between networks at Layer
+3.
+I just showed you the benefits of a redundant
+LAN, having multiple paths between these switches
+provides alternate paths if one connection
+fails.
+However, without spanning tree, there is a
+MAJOR problem here which can destroy your
+network.
+So, where is the problem?
+Let me introduce the concept of ‘broadcast
+storms’.
+I’ll use a simplified network topology to
+demonstrate the issue.
+PC1 is 10.0.0.1, PC2 is 10.0.0.2, and PC3
+is 10.0.0.3.
+You already know what a switch does with a
+broadcast frame or an unknown unicast frame.
+Let’s say, for example, PC1 wants to send some traffic
+to PC2.
+To do that, it needs to know PC2’s MAC address.
+So, let’s say PC1 sends an ARP request frame,
+which is a broadcast frame, it uses the broadcast
+MAC address of all F's as its Layer2
+address.
+When SW1 receives the frame, what will it
+do?  As I said,
+you already know what a switch does with broadcast
+and unknown unicast frames.
+It will flood it out of all interfaces, except
+the one it was received on.
+So, SW2 and SW3 both receive a copy of the
+frame.
+They then do the same thing, they flood it
+out all interfaces except the one it
+was received on.
+So, PC2 receives the ARP request and will
+reply with a unicast ARP reply.
+All good?
+Actually no, NOT all good.
+Although PC2 received the ARP request and
+sent its reply, these broadcast frames still
+remain on the network.
+I’ve cleaned up the arrows so you can see
+this easier.
+As I just said, PC2 received the ARP request
+and sent the reply, but what about these broadcast
+frames in the network?
+The switches will continue flooding them . So,
+what will happen after this?
+SW1 just received two broadcast frames, on
+two different interfaces.
+It will once again flood them.
+Let me clean that up again.
+SW2 and SW3 both just received broadcast frames,
+what will they do?
+They will flood them.
+So, I think you get the point.
+This will continue FOREVER.
+Do you remember the TTL, or time to live,
+field of the IP header?
+It is used to prevent infinite loops at Layer
+3.
+But the Ethernet header doesn’t have a TTL
+field.
+These broadcast frames will loop around the
+network indefinitely.
+If enough of these looped broadcasts accumulate
+in the network, the network will be too congested
+for legitimate traffic to use the network.
+This is called a broadcast storm.
+Eventually your network will look like this,
+so full of looping broadcast frames that no
+regular traffic can pass through your network.
+The red arrows represent the clock-wise loop
+between the three switches, and the purple
+arrows the counter-clockwise loop.
+However, network congestion isn’t the only
+problem.
+Each time a frame arrives on a switchport,
+the switch uses the source MAC address field
+to ‘learn’ the MAC address and update
+its MAC address table.
+When the frames with the same source MAC address
+repeatedly arrive on different interfaces,
+the switch is continuously updating the interface
+in its MAC address table.
+This is known as MAC Address Flapping.
+So, how can we design a network with redundant
+paths that doesn’t result in Layer 2 loops?
+Well, Spanning Tree Protocol is one answer
+to this problem.
+So let’s take a look at Spanning Tree protocol
+What we now call ‘classic spanning tree protocol’
+is an industry standard protocol, IEEE 802.1D.
+This is the type of STP we will focus on in
+today’s video, we will focus on the newer
+Rapid STP later.
+Because it is so important to prevent Layer
+2 loops, switches from ALL vendors run STP
+by default.
+So, you won’t only find STP on Cisco switches.
+STP prevents Layer 2 loops by placing redundant
+ports in a blocking state, essentially disabling
+the interface.
+These interfaces act as backups that can enter
+a forwarding state if an active interface,
+meaning an interface that is currently forwarding,
+fails.
+Interfaces in a forwarding state behave normally.
+They send and receive all normal traffic.
+However, Interfaces in a blocking state only
+send or receive STP messages (called BPDUs,
+or Bridge Protocol Data Units), and some other
+specific traffic.
+Before going more in depth , let me talk about
+that word ‘bridge’.
+I told you about Ethernet hubs in a previous
+video.
+Hubs were used before switches were invented,
+and instead of learning MAC addresses to forward
+frames to the correct destination, they simply
+flooded frames out of all interfaces.
+But actually, before switches, there was another
+kind of device called a bridge.
+You don’t need to know about bridges for
+the CCNA, they are an old technology, but
+they’re like a transitional stage between
+the hub and the switch.
+However, the reason I’m telling you about
+bridges is that Spanning Tree Protocol still
+uses the term ‘bridge’.
+However, when we use the term ‘bridge’,
+we really mean ‘switch’.
+Bridges are not used in modern networks.
+So, in this lecture, and really any time I
+talk about STP, you’ll hear me use the term
+‘bridge’, but really it means switch.
+So, if we look at this topology again, perhaps
+these interfaces are in a forwarding state,
+while this one interface on SW3 is in a blocking
+state, effectively disabling the connection
+between SW2 and SW3.
+So effectively its like that link doesn’t
+exist, and this is our topology.
+If PC1 sends that same ARP request broadcast
+frame, it will be flooded like this, no more
+loops.
+However, if at some point another interface
+fails, perhaps this one...
+The switches will automatically adjust the
+topology, and the broadcast frame would be
+flooded like this, again no loops.
+So, that is just a basic outline of the purpose
+of Spanning Tree Protocol.
+Now let’s go a little deeper into how spanning tree protocol works.
+By selecting which ports are forwarding and
+which ports are blocking, STP creates a single
+path to and from each point in the network.
+This prevents Layer 2 loops.
+There is a set process that STP uses to determine
+which ports should be forwarding and which
+should be blocking.
+That process is what we will cover next.
+STP-enabled switches send Hello BPDUs out
+of all interfaces, the default timer is 2
+seconds, so the switch will send a Hello BPDU
+out of every interface, once every 2 seconds.
+If a switch receives a Hello BPDU on an interface,
+it knows that interface is connected to another
+switch, because routers, PCs, etc. do not use STP,
+so they do not send Hello BPDUs.
+So, back to our topology here, these switches
+will send BPDUs out of each interface, like
+this . They use these BPDUs to advertise themselves
+to other switches, and to learn about other
+switches.
+Now, what exactly are these BPDUs used for?
+First of all, switches use one field in the
+STP BPDU, the Bridge ID field, to elect a
+root bridge for the network.
+The switch with the lowest Bridge ID becomes
+the root bridge.
+I’ll talk about the bridge ID in the next
+slide.
+ALL ports on the root bridge are put in a
+forwarding state, and other switches in the
+topology must have a path to reach the root
+bridge.
+So, as I mentioned previously STP puts ports in either a blocking or forwarding
+state, to avoid Layer 2 loops in the network.
+However, as I just said, on the root bridge, all ports are
+forwarding, and all other switches must have
+a path to reach the root bridge.
+Traditionally, the bridge ID field of the
+spanning tree BPDU looked like this.
+There is a bridge priority field, which is
+16 bits in length, and then there is the MAC
+address of the switch, which as you already
+know is 48 bits in length.
+The default bridge priority is 32768 on all
+switches, so by default the MAC address is
+used as the tie-breaker.
+As I said before, the switch with the lowest
+bridge ID becomes the root bridge, so therefore
+by default the switch with the lowest MAC
+address becomes the root bridge.
+So here’s that topology once again, and I’ve
+written the priority and MAC address for each
+switch.
+As you know MAC addresses are 12 hexadecimal
+digits, but I’ve shortened them to three.
+I’ve also added port lights for the interfaces,
+to show if they are forwarding or blocking.
+The G0/2 interface on each switch is connected
+to a PC, so because it isn’t receiving any
+BPDUs, it knows it is safe to go into forwarding
+mode, there is no risk of creating a Layer 2 loop,
+so these port lights are all green.
+Now, all three switches have the default priority
+of 32768, so in order to know which one will
+be the root bridge we will have to compare
+the MAC addresses.
+Remember, the LOWEST bridge ID wins.
+Which of these MAC addresses is the lowest?
+Well, hexadecimal A is equal to 10, B is equal
+to 11, and C is equal to 12, so SW1 has the
+lowest MAC address.
+Therefore, SW1 will become the root bridge
+of this network.
+All ports on the root bridge become designated
+ports, in a forwarding state.
+So, that is the traditional bridge ID.
+However, the bridge ID was actually updated
+to look like this.
+In reality, the bridge priority has been updated
+to be made of two parts, the bridge priority
+which is 4 bits, and the ‘extended system
+ID’, which is just the VLAN ID, which is
+12 bits, because as you know a VLAN number
+is 12 bits in length.
+Why include a VLAN ID in the bridge priority?
+Well, Cisco switches use a version of STP
+called PVST, which stands for Per-VLAN Spanning
+Tree.
+PVST runs a separate STP ‘instance’ in
+each VLAN, so in each VLAN different interfaces
+can be forwarding or blocking.
+One interface could be forwarding in VLAN1,
+but blocking in VLAN2, for example.
+By adding the VLAN ID into the bridge priority,
+the switch will have a different bridge ID
+in each VLAN.
+Here’s a deeper look at the bridge priority
+field.
+You may have wondered why 32768 is the default
+bridge priority.
+Well, it’s because this total field is 16 bits
+in length, and the most significant bit is
+set to 1 by default.
+Therefore, the default bridge priority WAS
+32768.
+However, with the addition of the extended-system
+ID, adding the VLAN ID number to the bridge
+priority, that changed.
+So, the default VLAN ID is 1, therefore the
+bridge priority in total actually ISN’T 32768, it’s
+32769.
+In the default VLAN of 1, the default bridge
+priority is actually 32769, which is
+32768 + 1.
+Now, here’s a question, If you want to increase
+the switch’s bridge priority without changing
+VLAN numbers, what is the minimum unit of
+increase/decrease?
+Let me explain what I mean in the next slide.
+The bridge priority + extended system ID is
+a single field of the bridge ID, however the
+extended system ID is set and cannot be changed because it is determined by the VLAN ID.
+Therefore, you can only change the total bridge
+priority (that is, the bridge priority + extended
+system ID) in units of 4096, the value of
+the least significant bit of the bridge priority portion.
+Let me demonstrate.
+Currently, the bridge priority here is 32769.
+Let’s reduce it to make this switch the
+root bridge.
+If I want to reduce it just a little, I can
+reduce it to 28673, which is 16384 plus 8192
+plus 4096 plus 1.
+I could reduce it more, of course, but the
+point is this: the STP bridge priority can
+only be changed in units of 4096.
+So, the valid values you can configure are listed
+here, starting from 0 and increasing in units
+of 4096.
+The extended system ID will then be added
+to this number to make the total bridge priority value.
+So let’s look at this topology again.
+We’ll just be looking at the STP topology
+for a single VLAN, VLAN1, so the priority
+for each switch is 32769.
+But if there are multiple VLANs, say VLAN1,
+VLAN2, and VLAN3 in this network, the priority
+would be 32770 for VLAN2, and 32771 for VLAN3, etc.
+We could also change the bridge priority on
+the switches for a specific VLAN, so for example
+SW1 is the root bridge in VLAN1, SW2 could be the
+root bridge in VLAN2, and SW3 could be the root
+bridge in VLAN3.
+I’ll talk about how you can do that in the next video,
+I just want to let you know some of the possibilities.
+So, here in VLAN1, SW1 is the root bridge.
+All interfaces on the root bridge are designated
+ports, and designated ports are in
+a forwarding state.
+Designated port is one of the port roles in
+spanning tree.
+There are a couple other port roles.
+I will introduce those in a minute.
+Okay just a few more points about the root
+bridge.
+When a switch is powered on, it assumes it
+is the root bridge.
+It will only give up its position if it receives
+a ‘superior’ BPDU, and superior means
+a BPDU from a switch with a lower bridge ID.
+Once the topology has converged and all switches
+agree on the root bridge, only the root bridge
+sends BPDUs.
+The reason all switches send BPDUs at first
+is because they all think they are the root
+bridge.
+Other switches in the network will forward BPDUs from the root bridge, but they will not generate their own
+original BPDUs.
+Before moving on, let’s see if you understand
+by doing a few practice questions.
+In this network of 4 switches, which will
+become the root bridge?
+Pause the video now to think about the answer.
+Okay, did you find the root bridge?
+The answer is SW3.
+Both SW1 and SW3 have the same priority, 12289,
+but SW3’s MAC address is lower.
+The first half, 014A 38 is the same, but the
+next digit is F for SW1, but 2 for SW3, so
+SW3’s MAC address is lower.
+Let’s do another practice question.
+Okay here it is.
+Which switch will become the root bridge in
+this case?
+Pause the video to think about your answer.
+Okay, the answer is SW4.
+It has the lowest priority of the 4 switches,
+4097.
+Okay, now let’s move on.
+So far we have covered the first step of spanning-tree’s
+process of creating loop-free Layer 2 LANs.
+Step 1: the switch with the lowest bridge
+ID is elected as the root bridge.
+All ports on the root bridge are designated
+ports, so they are in a forwarding state.
+It’s important that this is the first step
+that spanning tree takes, because the rest
+of the steps depend on knowing which switch
+is the root bridge.
+Now let’s go on to step 2.
+All other switches will select ONE of its
+ports to be its ‘root port’.
+So, that means there is one root port on each
+switch in the network, EXCEPT on the root
+bridge.
+The interface with the lowest root cost will
+be the root port.
+Root ports are also in a forwarding state.
+Now let’s talk about what that ‘root cost’
+is.
+Each interface has an associated spanning
+tree ‘cost’.
+A regular Ethernet interface, with a speed
+of 10 megabits per second, has a cost of 100.
+Fastethernet, 100 megabits per second, has
+a cost of 19.
+Gigabit ethernet has a cost of 4, and 10 gigabit
+ethernet has a cost of 2.
+Make sure you remember these path costs for
+the exam.
+Of course, there will be flashcards in the
+deck for this video, so use those to help
+you remember.
+So, these are gigabit ethernet ports,
+so they all have a cost of 4.
+The root cost is the total cost of the outgoing
+interfaces along the path to the root bridge.
+SW1 is the root bridge, so it has a cost of
+0 on all interfaces.
+They are gigabit ethernet interfaces, but
+you don’t count the cost of the receiving
+interface, just the sending, the outgoing interface.
+So, SW1 advertises its root cost of 0 in its
+BPDUs.
+SW2 will receive the BPDU and add the cost
+of its outgoing interface, G0/1, which is
+4, when it floods those BPDUs out of its interfaces.
+SW3 will do the same.
+So, which port do you think SW2 will choose
+as its root port?
+Here is its logic.
+It was advertised a cost of 0 on its G0/1
+interface, however the cost of its interface
+is 4, therefore the total root cost via G0/1
+is 4.
+It was advertised a cost of 4 on G0/0, from
+SW3.
+However its interface also has a cost of 4,
+so the total root cost via G0/0 is 8.
+So, it will select G0/1 as the root port.
+SW3’s logic follows the same process.
+It has a total cost of 4 via G0/0, and a total
+cost of 8 via G0/1, so it will select G0/0
+as its root port.
+In this case, the ports directly across from
+each root port are the root bridge, so they
+are already designated ports.
+However, keep in mind that the port connected
+to another switch’s root port MUST be designated.
+Because the root port is the switch’s path
+to the root bridge, another switch must not
+block it.
+Okay, so I’ve updated our spanning-tree
+summary here.
+First, one switch is elected as the root bridge.
+All ports on the root bridge are designated
+ports.
+There is only one step in selecting the root
+bridge, that is the switch with the lowest
+bridge ID.
+Next, each remaining switch will select ONE
+of its interfaces to be its root port, which
+is also in a forwarding state.
+Ports across from, ports connected to, the root port are always designated ports.
+The first criteria for root port selection
+is the port with the lowest root cost.
+However, what if a switch has multiple ports
+with the same root cost?
+In that case, the interface connected to the
+neighbor with the lowest bridge ID will be
+selected as the root port.
+Let’s see an example.
+Okay, let’s practice that with a
+quiz, actually.
+First, which switch will become the root bridge?
+Pause the video to think about the answer.
+Okay, the answer is SW2, because it has the lowest
+priority.
+So, SW2’s ports are all designated.
+Now, which ports will become root ports?
+All interfaces are gigabit ethernet, so all
+have a cost of 4.
+Remember, if there is a tie in root cost,
+the switch will select the interface connected
+to the neighbor with the lowest bridge ID.
+So, pause the video here to think about your
+answer, which ports will be selected as root
+ports, one on each switch.
+Okay, on SW1 and SW4, the answer is obvious, SW1’s
+G0/0 and SW4’s G0/1 have a cost of 4, so
+they are selected.
+How about SW3?
+Via G0/0 it has a cost of 8, 4 plus 4.
+Via G0/1 it has the same, a cost of 8, 4 plus
+4.
+So, we have to use the tiebreaker, which neighbor
+switch has the lowest bridge ID, SW1 or SW4?
+It’s SW1, the priorities are the same, but
+SW1’s MAC address is lower.
+So, G0/0 is selected as the root port, and
+SW1’s G0/1 becomes designated.
+So, this is the process so far.
+HOWEVER, there is ONE more tiebreaker that
+might be needed to select the root port.
+What if two switches have two connections
+between them, so both the root cost and the
+neighbor bridge ID are the same?
+Then we get to the final tie-breaker, the
+interface connected to the interface on the
+neighbor switch with the lowest port ID will
+become the root port.
+Okay, let me briefly explain port ID.
+So, here is the output of the command SHOW
+SPANNING-TREE, we’ll talk about it more
+in a future video when we look at spanning
+tree configuration.
+I just want to show you this section, this
+lists the spanning tree port ID of each interface
+on the switch.
+Notice the column title is Prio dot number.
+So, each port has a default priority of 128,
+and then a unique port number, 1 for G0/0,
+2 for G0/1, etc on this switch.
+So, the STP port ID equals the port priority
+plus the port number.
+Similar to the bridge ID, where the MAC address
+is used as a tiebreaker if the priorities
+tie, in this case the port number is used
+as a tiebreaker if the priorities tie.
+I won’t explain the port ID in more depth
+than this, usually you don’t need to worry
+about it or change it, so you can just look
+at the port number.
+For example, G0/0 is lower than G1/0, or G0/3
+is lower than G1/2.
+So, one more quiz to practice that.
+Now there are two connections between SW1
+and SW3.
+Which port will SW3 select as the root port?
+Pause the video to think about your answer.
+The answer is G0/2, because it is connected
+to a lower port ID on the neighbor switch,
+SW1.
+This is an important point.
+The NEIGHBOR switch’s port ID is used to
+break the tie, not the local switch’s port
+ID.
+That’s why G0/2 was selected over G0/0,
+because G0/0 is connected to a higher port
+ID on SW1.
+So, SW1’s G0/1 interface is a designated
+port, because it is connected to SW3’s root
+port.
+Okay, so this is our process so far.
+But, it’s not complete.
+We still haven’t blocked any ports, and
+we need to block some ports to prevent Layer
+2 loops.
+So, let’s return to our previous topology.
+All that’s left is this connection between
+SW2 and SW3.
+So far, all of our ports are in a forwarding
+state, both root ports and designated ports
+are always in a forwarding state.
+So, to prevent loops do we block both of these
+ports?
+SW2’s G0/0 and SW3’s G0/1?
+Actually no, here’s an important rule to
+remember: every collision domain has a single
+spanning tree designated port.
+Remember, unlike old Ethernet hubs, which
+we don’t use anymore, when we use switches,
+each link is a separate collision domain.
+This collision domain between SW1 and SW2
+has one designated port, SW1’s G0/0.
+This connection between SW1 and SW3 has one,
+SW1’s G0/1.
+And the connections with the PCs are all designated
+ports in the forwarding state, because the
+PCs don’t participate in spanning tree.
+So, we need one designated port on the connection
+between SW2 and SW3.
+How do we determine which port will be designated,
+in a forwarding state?
+The switch with the lowest root cost will
+make its port designated.
+However, in this case both switches have the
+same root cost, 4 for SW2 via its G0/1 interface
+and 4 for SW3 via its G0/0 interface.
+So, for the tie-breaker we compare the bridge
+ID.
+SW2 has the lower bridge ID, so its G0/0 interface
+will be designated.
+Finally, the other switch will make its port
+non-designated, which means it is in a blocking
+state.
+So SW3’s G0/1 is non-designated, it blocks
+the port to prevent Layer 2 loops.
+So, here is the process for selecting the
+different port roles and states in spanning
+tree.
+One switch is selected as the root bridge,
+the switch with the lowest bridge ID.
+Then, each remaining switch selects ONE of
+its interfaces to be a root port.
+The interface with the lowest root cost is
+selected, if that’s a tie the interface
+connecting to a neighboring switch with the
+lowest bridge ID is selected, if that’s
+a tie also, the interface connected to the
+lowest port ID on the NEIGHBOR switch is selected.
+Then finally, each remaining collision domain
+will select ONE interface to be a designated
+port, and the other port will be non-designated.
+The interface on the switch with the lowest
+root cost will be designated, if that’s
+a tie the interface on the switch with the
+lowest bridge ID will be designated, and then
+the other interface will be a non-designated
+port, in a blocking state.
+There are still many important things left
+to explain regarding spanning-tree, I will
+cover those in part 2, before moving on to
+another type of spanning tree, called rapid
+spanning tree.
+We already did a few quiz questions throughout
+the video, but let’s do a few more practice
+questions to make sure you know the whole
+process.
+If you get stuck, if you don't know the answer, go back to the previous
+slide to remind yourself of the process, and
+try to figure out the answers yourself.
+I will also feature one question from Boson
+ExSim after the quiz, however today will be
+a little different.
+Because there are still some important points
+to cover about spanning tree, we actually
+aren’t ready to answer the spanning tree
+questions on Boson ExSim.
+So, I will show you one question from Boson
+ExSim, and in the next video we will see the
+answer.
+Of course, if you have already studied spanning
+tree and already know the answer, please write
+it in the comment section.
+Okay, let’s do a couple more practice questions
+first.
+Here is a network topology.
+Identify the root bridge, and the role of
+each interface on each switch in the network,
+so which interfaces are root ports, which
+are designated ports, and which are non-designated
+ports.
+Pause the video to think about your answer.
+Okay, I hope you found the answer.
+So, the root bridge is SW3, because the priority
+is a tie and it has the lowest MAC address.
+These are the root ports, SW2 selected its
+G0/2 interface because it is connected to
+the lower-number interface on SW1, G0/0.
+And these are the remaining connections.
+In each case the interface on SW2 is non-designated,
+because it has a higher root cost.
+Always remember to check that there is one
+designated port for each connection, each
+collision domain.
+Okay, let’s do one more quiz.
+Do the same thing, but with this network topology.
+Look carefully, some of these interfaces are
+fast ethernet interfaces, they have a spanning
+tree cost of 19, not 4.
+Pause the video to think about your answer.
+Okay, hopefully you solved it.
+SW4 is the root bridge because it has the
+lowest priority.
+these are the root ports.
+SW1 uses its G0/1 interface as the root port,
+because it’s other two interfaces are fastethernet,
+with a much higher spanning tree cost.
+Finally, the remaining designated and non-designated
+ports.
+SW1’s F1/0 and F2/0 are non-designated because
+SW2 has a lower root cost, and SW2’s G0/1
+is non-designated because SW4 IS the root
+bridge, so its G0/1 interface must be designated.
+Okay, that’s all for the quiz, let’s take
+a look at Boson ExSim.
+Okay for today's Boson ExSim practice question
+we're talking about PortFast, which is an
+optional feature of spanning tree which I
+haven't talked about in today's video.
+So, I won't give the answer in this video,
+I'll just read the question and then I'll
+give you the answer in the next lecture video,
+day 21.
+Now, if you think you know the answer, if
+you've already studied spanning tree please
+feel free to let me know your answer in the
+comments.
+Or if you want to do some independent research
+of your own, perhaps type into Google 'spanning
+tree portfast' and do some reading, and then
+figure out the answer, again please let me
+know your answer in the comment section.
+So here is the question.
+You want to decrease the amount of time that
+it takes for switchports on Switch A to begin
+forwarding.
+Portfast is not configured on any of the switchports
+on Switch A. You issue the 'spanning-tree
+portfast default' command from global configuration
+mode.
+Which of the ports on Switch A will use portfast?
+Select the best answer.
+So A says 'No ports, because portfast cannot
+be enabled globally.'
+B says 'All ports', C says 'All access ports',
+and D 'All trunk ports'.
+Okay so as I said, this time we won't check
+the answer.
+Please wait for the next video to see the
+answer for this question.
+Of course, if you think you know the answer,
+let me know in the comment section.
+If you want to get your own copy of ExSim,
+and I highly recommend you do before you take
+the real thing, please follow my link in the
+video description.
+These are by far the best practice exams out
+there for the CCNA.
+There will be supplementary materials for
+this video.
+There will be a review flashcard deck to use
+with the software ‘Anki’.
+Download the deck from the link in the description.
+There will also be a packet tracer practice
+lab.
+Please be sure to watch the practice lab,
+it will give you some more practice for this
+process of figuring out a spanning tree topology,
+but also I will introduce some valuable CLI
+commands which I didn’t have the time to
+show in this video.
+Before finishing today’s video I want to
+thank my JCNP-level channel members.
+Thank you to Joyce, Marek, Samil, Velvijaykum,
+C Mohd, Johan, Mark, Aleksa, Miguel, Yousif,
+Boson Software, the creators of ExSim, Sidi,
+Magrathea, Devin, Charlsetta, Lito, Yonatan,
+Mike, Aleksandr, and Vance.
+Sorry if I pronounced your name incorrectly,
+but thank you so much for your support.
+One of you is displaying as Channel failed
+to load, if this is you please let me know
+and I’ll see if YouTube can fix it.
+This is the list of JCNP-level members at
+the time of recording by the way, May 10th, if you signed
+up recently and your name isn’t on here
+don’t worry, you’ll definitely be in the
+next video.
+Thank you for watching.
+Please subscribe to the channel, like the
+video, leave a comment, and share the video
+with anyone else studying for the CCNA.
+If you want to leave a tip, check the links
+in the description.
+I'm also a Brave verified publisher and accept
+BAT, or Basic Attention Token, tips via the
+Brave browser.
+That's all for now.
