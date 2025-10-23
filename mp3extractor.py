@@ -1,39 +1,64 @@
+import argparse
+import os
+import shutil
 import subprocess
-from pathlib import Path
-#Install ffmpeg and make sure ffmpeg is in your PATH (or use the full path to ffmpeg.exe).
-#This uses the LAME encoder (libmp3lame) and keeps only the audio (-vn).
+import sys
 
-def mp4_to_mp3(src_path, dst_path=None, bitrate="192k", track=0):
-    """
-    Convert the audio track of an MP4 to MP3 via ffmpeg.
+def main():
+    p = argparse.ArgumentParser(description="Extract MP3 audio from an MP4 file.")
+    p.add_argument("input", help="Path to input .mp4 file")
+    p.add_argument("-o", "--output", help="Path to output .mp3 (optional)")
+    p.add_argument("-b", "--bitrate", default="192k", help="Audio bitrate (e.g., 128k, 192k, 256k)")
+    args = p.parse_args()
 
-    src_path: path to the .mp4 file
-    dst_path: optional output .mp3 path (defaults to same name)
-    bitrate:  e.g. "128k", "192k", "320k"
-    track:    which audio track to use (0 = first)
-    """
-    src = Path(src_path)
-    dst = Path(dst_path) if dst_path else src.with_suffix(".mp3")
+    # 1) Check ffmpeg availability
+    if shutil.which("ffmpeg") is None:
+        print("Error: ffmpeg not found. Install ffmpeg and ensure it's in your PATH.", file=sys.stderr)
+        sys.exit(1)
 
+    # 2) Validate input
+    in_path = os.path.abspath(args.input)
+    if not os.path.isfile(in_path):
+        print(f"Error: input file not found: {in_path}", file=sys.stderr)
+        sys.exit(1)
+
+    # 3) Derive output name if not provided
+    if args.output:
+        out_path = os.path.abspath(args.output)
+    else:
+        base, _ = os.path.splitext(in_path)
+        out_path = base + ".mp3"
+
+    # 4) Build ffmpeg command
+    # -vn = no video, -acodec libmp3lame = encode as MP3, -b:a = bitrate
     cmd = [
         "ffmpeg",
-        "-y",               # overwrite
-        "-i", str(src),     # input
-        "-map", f"0:a:{track}",  # pick audio track
-        "-vn",              # no video
-        "-c:a", "libmp3lame",
-        "-b:a", bitrate,
-        str(dst)
+        "-y",                # overwrite output if exists
+        "-i", in_path,       # input
+        "-vn",               # drop video
+        "-acodec", "libmp3lame",
+        "-b:a", args.bitrate,
+        out_path
     ]
-    subprocess.run(cmd, check=True)
 
-# Example: single file
-mp4_to_mp3("input_video.mp4", bitrate="192k")
-
-# Example: batch all MP4s in a folder
-for mp4 in Path(r"D:\Videos").glob("*.mp4"):
+    # 5) Run and stream progress
+    print("Running:", " ".join(cmd))
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
-        mp4_to_mp3(mp4, bitrate="192k")
-        print(f"OK: {mp4.name}")
-    except subprocess.CalledProcessError:
-        print(f"FAILED: {mp4.name}")
+        for line in proc.stdout:
+            # ffmpeg prints progress to stderr (merged into stdout here)
+            if "time=" in line or "Duration:" in line:
+                print(line.strip())
+    except KeyboardInterrupt:
+        proc.kill()
+        sys.exit(130)
+
+    rc = proc.wait()
+    if rc != 0:
+        print(f"ffmpeg failed with exit code {rc}", file=sys.stderr)
+        sys.exit(rc)
+
+    print(f"Done! MP3 saved to: {out_path}")
+
+if __name__ == "__main__":
+    main()
