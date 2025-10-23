@@ -3,7 +3,12 @@ import os
 import shutil
 import subprocess
 import sys
-#test
+#Usage examples
+#Default 192 kbps:
+#python extract_mp3_ffmpeg.py "C:\Videos\my clip.mp4"
+#Specify output + bitrate:
+#python extract_mp3_ffmpeg.py "input.mp4" -o "audio.mp3" -b 256k
+
 def main():
     p = argparse.ArgumentParser(description="Extract MP3 audio from an MP4 file.")
     p.add_argument("input", help="Path to input .mp4 file")
