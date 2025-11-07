@@ -58,7 +58,7 @@ def compress_pdf_raster(in_path, out_path, dpi=144, jpeg_quality=70, grayscale=F
             progress_cb(i, len(src))
 
     # Final save with aggressive cleanup/deflate
-    dst.save(out_path, deflate=True, clean=True, garbage=4, linear=True)
+    dst.save(out_path, deflate=True, clean=True, garbage=4)  # no linear
     dst.close()
     src.close()
 
