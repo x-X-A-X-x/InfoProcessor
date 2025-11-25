@@ -1,6 +1,6 @@
 #pip install pymupdf pillow
 import tkinter as tk
-from tkinter import filedialog, messagebox, simpledialog
+from tkinter import filedialog, messagebox
 import fitz  # PyMuPDF
 from PIL import Image, ImageTk
 import json
@@ -25,6 +25,10 @@ class PDFAnnotator(tk.Tk):
         # List of annotations:
         # {page, x_pdf, y_pdf, text, font_size, color_name, color_rgb}
         self.annotations = []
+
+        # Undo / Redo stacks
+        self.undo_stack = []
+        self.redo_stack = []
 
         # ---- UI ----
         self.create_menu()
@@ -51,10 +55,10 @@ class PDFAnnotator(tk.Tk):
         toolbar = tk.Frame(self)
         toolbar.pack(side=tk.TOP, fill=tk.X)
 
-        # Text to place
+        # Text to place (multi-line, supports copy-paste)
         tk.Label(toolbar, text="Text:").pack(side=tk.LEFT, padx=2)
-        self.text_entry = tk.Entry(toolbar, width=30)
-        self.text_entry.pack(side=tk.LEFT, padx=2)
+        self.text_box = tk.Text(toolbar, height=3, width=40)
+        self.text_box.pack(side=tk.LEFT, padx=2)
 
         # Font size
         tk.Label(toolbar, text="Size:").pack(side=tk.LEFT, padx=2)
@@ -70,11 +74,18 @@ class PDFAnnotator(tk.Tk):
         self.color_menu = tk.OptionMenu(toolbar, self.color_var, *colors)
         self.color_menu.pack(side=tk.LEFT, padx=2)
 
+        # Undo / Redo buttons
+        self.undo_btn = tk.Button(toolbar, text="Undo", command=self.undo_action)
+        self.undo_btn.pack(side=tk.LEFT, padx=5)
+
+        self.redo_btn = tk.Button(toolbar, text="Redo", command=self.redo_action)
+        self.redo_btn.pack(side=tk.LEFT, padx=5)
+
         # Page navigation (prev/next)
-        self.prev_btn = tk.Button(toolbar, text="<< Prev Page", command=self.prev_page)
+        self.prev_btn = tk.Button(toolbar, text="<< Prev", command=self.prev_page)
         self.prev_btn.pack(side=tk.LEFT, padx=5)
 
-        self.next_btn = tk.Button(toolbar, text="Next Page >>", command=self.next_page)
+        self.next_btn = tk.Button(toolbar, text="Next >>", command=self.next_page)
         self.next_btn.pack(side=tk.LEFT, padx=5)
 
         # Current page label
@@ -84,7 +95,10 @@ class PDFAnnotator(tk.Tk):
     def create_canvas(self):
         self.canvas = tk.Canvas(self, bg="gray")
         self.canvas.pack(fill=tk.BOTH, expand=True)
-        self.canvas.bind("<Button-1>", self.on_canvas_click)
+        # Left-click = add text
+        self.canvas.bind("<Button-1>", self.on_canvas_left_click)
+        # Right-click = delete nearest annotation
+        self.canvas.bind("<Button-3>", self.on_canvas_right_click)
 
     # ---------- PDF HANDLING ----------
     def open_pdf(self):
@@ -103,6 +117,8 @@ class PDFAnnotator(tk.Tk):
         self.pdf_path = path
         self.page_index = 0
         self.annotations = []
+        self.undo_stack.clear()
+        self.redo_stack.clear()
         self.render_page()
         self.update_page_label()
 
@@ -156,13 +172,14 @@ class PDFAnnotator(tk.Tk):
             self.update_page_label()
 
     # ---------- ANNOTATIONS ----------
-    def on_canvas_click(self, event):
+    def on_canvas_left_click(self, event):
+        """Create a new text annotation at the click position."""
         if not self.doc:
             return
 
-        text = self.text_entry.get().strip()
+        text = self.text_box.get("1.0", "end-1c").strip()
         if not text:
-            messagebox.showinfo("Info", "Enter text in the Text field first.")
+            messagebox.showinfo("Info", "Enter or paste text in the Text box first.")
             return
 
         try:
@@ -174,11 +191,9 @@ class PDFAnnotator(tk.Tk):
         color_name = self.color_var.get()
         color_rgb = self.color_name_to_rgb(color_name)
 
-        # Convert canvas (display) coordinates to PDF coordinates
         x_display = event.x
         y_display = event.y
 
-        # Protection if display sizes are None
         if not self.display_width or not self.display_height:
             return
 
@@ -196,12 +211,63 @@ class PDFAnnotator(tk.Tk):
             "text": text,
             "font_size": font_size,
             "color_name": color_name,
-            "color_rgb": color_rgb,  # (r, g, b) in 0–1
+            "color_rgb": color_rgb,
         }
         self.annotations.append(ann)
 
+        # Push to undo stack (add action)
+        self.undo_stack.append({
+            "type": "add",
+            "annotation": ann,
+            "index": len(self.annotations) - 1
+        })
+        self.redo_stack.clear()
+
         # Draw immediately on canvas
         self.draw_single_annotation(ann)
+
+    def on_canvas_right_click(self, event):
+        """Delete the nearest annotation on this page (simple remove function)."""
+        if not self.doc or not self.annotations:
+            return
+
+        # Convert click position to display coordinates
+        click_x = event.x
+        click_y = event.y
+
+        # Find nearest annotation on this page
+        nearest_idx = None
+        nearest_dist2 = None
+
+        for idx, ann in enumerate(self.annotations):
+            if ann["page"] != self.page_index:
+                continue
+
+            # Convert annotation PDF coords to display coords
+            scale_x = self.display_width / self.page_width
+            scale_y = self.display_height / self.page_height
+            ann_x = ann["x_pdf"] * scale_x
+            ann_y = ann["y_pdf"] * scale_y
+
+            dx = ann_x - click_x
+            dy = ann_y - click_y
+            dist2 = dx * dx + dy * dy
+
+            if nearest_dist2 is None or dist2 < nearest_dist2:
+                nearest_dist2 = dist2
+                nearest_idx = idx
+
+        # Threshold so we don't delete something far away
+        if nearest_idx is not None and nearest_dist2 is not None and nearest_dist2 < 25**2:
+            ann = self.annotations.pop(nearest_idx)
+            # Push delete action to undo stack
+            self.undo_stack.append({
+                "type": "delete",
+                "annotation": ann,
+                "index": nearest_idx
+            })
+            self.redo_stack.clear()
+            self.render_page()
 
     def draw_annotations_for_current_page(self):
         for ann in self.annotations:
@@ -209,6 +275,9 @@ class PDFAnnotator(tk.Tk):
                 self.draw_single_annotation(ann)
 
     def draw_single_annotation(self, ann):
+        if not self.display_width or not self.display_height:
+            return
+
         # Convert PDF coords to display coords
         scale_x = self.display_width / self.page_width
         scale_y = self.display_height / self.page_height
@@ -217,7 +286,6 @@ class PDFAnnotator(tk.Tk):
         y_display = ann["y_pdf"] * scale_y
 
         r, g, b = ann["color_rgb"]
-        # Convert 0–1 RGB to hex for Tkinter
         color_hex = "#{:02x}{:02x}{:02x}".format(
             int(r * 255), int(g * 255), int(b * 255)
         )
@@ -234,18 +302,89 @@ class PDFAnnotator(tk.Tk):
 
     @staticmethod
     def color_name_to_rgb(name):
-        # Return RGB in 0–1 for PyMuPDF
         mapping = {
             "black": (0, 0, 0),
             "red": (1, 0, 0),
             "blue": (0, 0, 1),
-            "green": (0, 0, 1 * 0),  # (0,1,0) but keep pattern explicit
+            "green": (0, 1, 0),
             "orange": (1, 0.5, 0),
             "purple": (0.5, 0, 0.5),
         }
-        if name == "green":
-            return (0, 1, 0)
         return mapping.get(name, (0, 0, 0))
+
+    # ---------- UNDO / REDO ----------
+    def undo_action(self):
+        if not self.undo_stack:
+            return
+
+        action = self.undo_stack.pop()
+        ann = action["annotation"]
+        idx = action["index"]
+
+        if action["type"] == "add":
+            # Remove the annotation
+            if 0 <= idx < len(self.annotations) and self.annotations[idx] is ann:
+                self.annotations.pop(idx)
+            else:
+                # fallback: remove first matching
+                try:
+                    self.annotations.remove(ann)
+                except ValueError:
+                    pass
+            # Push inverse to redo stack
+            self.redo_stack.append({
+                "type": "delete",
+                "annotation": ann,
+                "index": idx
+            })
+        elif action["type"] == "delete":
+            # Re-insert the annotation
+            if idx <= len(self.annotations):
+                self.annotations.insert(idx, ann)
+            else:
+                self.annotations.append(ann)
+            # Push inverse to redo stack
+            self.redo_stack.append({
+                "type": "add",
+                "annotation": ann,
+                "index": idx
+            })
+
+        self.render_page()
+
+    def redo_action(self):
+        if not self.redo_stack:
+            return
+
+        action = self.redo_stack.pop()
+        ann = action["annotation"]
+        idx = action["index"]
+
+        if action["type"] == "add":
+            if idx <= len(self.annotations):
+                self.annotations.insert(idx, ann)
+            else:
+                self.annotations.append(ann)
+            self.undo_stack.append({
+                "type": "add",
+                "annotation": ann,
+                "index": idx
+            })
+        elif action["type"] == "delete":
+            if 0 <= idx < len(self.annotations) and self.annotations[idx] is ann:
+                self.annotations.pop(idx)
+            else:
+                try:
+                    self.annotations.remove(ann)
+                except ValueError:
+                    pass
+            self.undo_stack.append({
+                "type": "delete",
+                "annotation": ann,
+                "index": idx
+            })
+
+        self.render_page()
 
     # ---------- SAVE / LOAD PROJECT ----------
     def save_project(self):
@@ -303,6 +442,8 @@ class PDFAnnotator(tk.Tk):
         self.pdf_path = pdf_path
         self.annotations = project_data.get("annotations", [])
         self.page_index = 0
+        self.undo_stack.clear()
+        self.redo_stack.clear()
         self.render_page()
         self.update_page_label()
         messagebox.showinfo("Loaded", "Project loaded successfully.")
@@ -320,7 +461,6 @@ class PDFAnnotator(tk.Tk):
         if not export_path:
             return
 
-        # Open original PDF again to avoid modifying in-place
         try:
             doc = fitz.open(self.pdf_path)
         except Exception as e:
