@@ -6,6 +6,7 @@ from PIL import Image, ImageTk
 import json
 import os
 
+
 class PDFAnnotator(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -22,7 +23,7 @@ class PDFAnnotator(tk.Tk):
         self.display_width = None
         self.display_height = None
 
-        # List of annotations:
+        # Annotations:
         # {page, x_pdf, y_pdf, text, font_size, color_name, color_rgb}
         self.annotations = []
 
@@ -144,7 +145,8 @@ class PDFAnnotator(tk.Tk):
 
         self.canvas.delete("all")
         self.canvas.config(scrollregion=(0, 0, pix.width, pix.height))
-        self.canvas.create_image(0, 0, anchor=tk.NW, image=self.page_photo, tags="page_img")
+        self.canvas.create_image(0, 0, anchor=tk.NW,
+                                 image=self.page_photo, tags="page_img")
 
         # Draw annotations for this page
         self.draw_annotations_for_current_page()
@@ -227,15 +229,13 @@ class PDFAnnotator(tk.Tk):
         self.draw_single_annotation(ann)
 
     def on_canvas_right_click(self, event):
-        """Delete the nearest annotation on this page (simple remove function)."""
+        """Delete the nearest annotation on this page."""
         if not self.doc or not self.annotations:
             return
 
-        # Convert click position to display coordinates
         click_x = event.x
         click_y = event.y
 
-        # Find nearest annotation on this page
         nearest_idx = None
         nearest_dist2 = None
 
@@ -257,8 +257,8 @@ class PDFAnnotator(tk.Tk):
                 nearest_dist2 = dist2
                 nearest_idx = idx
 
-        # Threshold so we don't delete something far away
-        if nearest_idx is not None and nearest_dist2 is not None and nearest_dist2 < 25**2:
+        # Small radius so we don't delete something far away
+        if nearest_idx is not None and nearest_dist2 is not None and nearest_dist2 < 25 ** 2:
             ann = self.annotations.pop(nearest_idx)
             # Push delete action to undo stack
             self.undo_stack.append({
@@ -280,7 +280,7 @@ class PDFAnnotator(tk.Tk):
 
         # Convert PDF coords to display coords
         scale_x = self.display_width / self.page_width
-        scale_y = self.display_height / self.page_height
+        scale_y = self.page_height / self.page_height
 
         x_display = ann["x_pdf"] * scale_x
         y_display = ann["y_pdf"] * scale_y
@@ -302,6 +302,7 @@ class PDFAnnotator(tk.Tk):
 
     @staticmethod
     def color_name_to_rgb(name):
+        # RGB in 0–1 for PyMuPDF
         mapping = {
             "black": (0, 0, 0),
             "red": (1, 0, 0),
@@ -326,7 +327,6 @@ class PDFAnnotator(tk.Tk):
             if 0 <= idx < len(self.annotations) and self.annotations[idx] is ann:
                 self.annotations.pop(idx)
             else:
-                # fallback: remove first matching
                 try:
                     self.annotations.remove(ann)
                 except ValueError:
@@ -462,6 +462,7 @@ class PDFAnnotator(tk.Tk):
             return
 
         try:
+            # Open the original PDF (no zoom) so coordinates match
             doc = fitz.open(self.pdf_path)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open original PDF:\n{e}")
@@ -470,14 +471,31 @@ class PDFAnnotator(tk.Tk):
         try:
             for ann in self.annotations:
                 page = doc[ann["page"]]
-                point = fitz.Point(ann["x_pdf"], ann["y_pdf"])
+
+                # Top-left PDF coordinates we stored
+                x = ann["x_pdf"]
+                y = ann["y_pdf"]
+
+                # Multi-line height estimate
+                lines = ann["text"].splitlines() or [ann["text"]]
+                line_count = max(1, len(lines))
+
+                rect = fitz.Rect(
+                    x,
+                    y,
+                    page.rect.width,                      # extend to right margin
+                    y + ann["font_size"] * 1.6 * line_count
+                )
+
                 r, g, b = ann["color_rgb"]
-                page.insert_text(
-                    point,
+
+                page.insert_textbox(
+                    rect,
                     ann["text"],
                     fontsize=ann["font_size"],
                     fontname="helv",
-                    fill=(r, g, b),
+                    color=(r, g, b),
+                    align=0   # left-aligned
                 )
 
             doc.save(export_path)
@@ -485,6 +503,7 @@ class PDFAnnotator(tk.Tk):
             messagebox.showinfo("Exported", "Annotated PDF exported successfully.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to export PDF:\n{e}")
+
 
 if __name__ == "__main__":
     app = PDFAnnotator()
